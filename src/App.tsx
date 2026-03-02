@@ -329,15 +329,22 @@ export default function App() {
       console.error("Generation error details:", err);
       let errorMessage = "אירעה שגיאה ביצירת התמונה. נסו שוב.";
       
-      if (err.message?.includes("Requested entity was not found")) {
+      const errorText = err.message || "";
+      const isQuotaExceeded = errorText.includes("RESOURCE_EXHAUSTED") || 
+                             errorText.includes("Quota exceeded") || 
+                             err.status === "RESOURCE_EXHAUSTED";
+
+      if (isQuotaExceeded) {
+        errorMessage = "בשל עומס רב על המערכת, המכסה היומית הסתיימה. ניתן יהיה ליצור דפי צביעה נוספים החל ממחר. תודה על הסבלנות!";
+      } else if (errorText.includes("Requested entity was not found")) {
         errorMessage = "מפתח ה-API לא נמצא או לא תקין. אנא חברו מפתח חדש מפרויקט בתשלום.";
         setHasKey(false);
-      } else if (err.message?.includes("API key") || err.status === 401 || err.status === 403) {
+      } else if (errorText.includes("API key") || err.status === 401 || err.status === 403) {
         errorMessage = "בעיה במפתח ה-API. ודאו שהגדרתם את GEMINI_API_KEY ב-Secrets או השתמשו בכפתור החיבור.";
-      } else if (err.message?.includes("safety")) {
+      } else if (errorText.includes("safety")) {
         errorMessage = "התמונה נחסמה על ידי מסנני הבטיחות. נסו תמונה אחרת.";
-      } else if (err.message) {
-        errorMessage = err.message;
+      } else if (errorText) {
+        errorMessage = errorText;
       }
       
       setError(errorMessage);
