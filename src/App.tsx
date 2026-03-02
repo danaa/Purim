@@ -643,7 +643,7 @@ export default function App() {
       <footer className="py-12 px-4 text-center border-t-[1.5px] border-black bg-white">
         <p className="font-black text-xl mb-3">נוצר באהבה עבור ילדי ישראל 🇮🇱</p>
         <div className="flex flex-col items-center gap-2">
-          <p className="font-bold text-lg">לעוד יצירה בבינה מלאכותית בואו לאתר:</p>
+          <p className="font-bold text-lg">לעוד יצירה בבינה מלאכותית בעברית מלאה בואו לאתר שלנו:</p>
           <a 
             href="https://genaicreative.art" 
             target="_blank" 
@@ -652,6 +652,9 @@ export default function App() {
           >
             GenAiCreative.art
           </a>
+          <p className="mt-4 text-base font-medium">
+            נבנה על ידי <a href="https://www.facebook.com/dana.akerman/" target="_blank" rel="noopener noreferrer" className="underline hover:text-[#FF7F50] transition-colors">דנה אקרמן גרין</a>
+          </p>
         </div>
         <p className="text-sm font-bold mt-6 opacity-40">&copy; 2026 כל הזכויות שמורות</p>
       </footer>
