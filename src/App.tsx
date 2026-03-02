@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { GoogleGenAI } from '@google/genai';
 import { Upload, Wand2, Download, RefreshCw, Sparkles, Paintbrush, ArrowLeft, Camera, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { Analytics } from '@vercel/analytics/react';
 
 const COSTUMES = [
   { id: 'pikachu', label: 'פיקאצ\'ו', prompt: 'Pikachu' },
@@ -649,6 +650,7 @@ export default function App() {
         <p className="text-sm font-bold mt-6 opacity-40">&copy; 2026 כל הזכויות שמורות</p>
       </footer>
 
+      <Analytics />
     </div>
   );
 }
