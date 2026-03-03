@@ -128,14 +128,45 @@ export default function App() {
   const [loadingMessageIdx, setLoadingMessageIdx] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [isFacebookBrowser, setIsFacebookBrowser] = useState(false);
+  const [copySuccess, setCopySuccess] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const ua = navigator.userAgent || navigator.vendor || (window as any).opera;
-    const isFB = ua.indexOf("FBAN") > -1 || ua.indexOf("FBAV") > -1;
+    const isFB = ua.indexOf("FBAN") > -1 || ua.indexOf("FBAV") > -1 || ua.indexOf("Messenger") > -1 || ua.indexOf("Instagram") > -1;
     setIsFacebookBrowser(isFB);
   }, []);
+
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      setCopySuccess(true);
+      setTimeout(() => setCopySuccess(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+  };
+
+  const handleOpenInBrowser = () => {
+    const url = window.location.href;
+    
+    // Attempt to force open in external browser
+    if (/android/i.test(navigator.userAgent)) {
+      // Android Intent
+      const intentUrl = `intent://${url.replace(/^https?:\/\//, '')}#Intent;scheme=https;package=com.android.chrome;end`;
+      window.location.href = intentUrl;
+    } else if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+      // iOS - No perfect way, but we can try common schemes or just tell them to use the menu
+      // Some versions of FB browser support this trick:
+      window.location.href = url.includes('?') ? `${url}&open_external_browser=1` : `${url}?open_external_browser=1`;
+    } else {
+      window.open(url, '_blank');
+    }
+    
+    // Also hide the overlay so they can continue if it didn't work
+    setIsFacebookBrowser(false);
+  };
 
   useEffect(() => {
     const checkKey = async () => {
@@ -407,14 +438,18 @@ export default function App() {
                 כדי שהקסם יעבוד בצורה מושלמת והורדת התמונות תתאפשר, כדאי לפתוח את האתר בדפדפן הרגיל שלכם (כרום או ספארי).
               </p>
               <button 
-                onClick={() => {
-                  const url = window.location.href;
-                  window.open(url, '_blank');
-                }}
+                onClick={handleOpenInBrowser}
                 className="w-full py-5 bg-blue-500 text-white border-2 border-black font-black text-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-1 hover:translate-y-1 transition-all flex items-center justify-center gap-3"
               >
                 <RefreshCw className="w-8 h-8" />
                 פתח בדפדפן הרגיל
+              </button>
+
+              <button 
+                onClick={handleCopyLink}
+                className="w-full mt-4 py-4 bg-white text-black border-2 border-black font-bold text-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-1 hover:translate-y-1 transition-all flex items-center justify-center gap-3"
+              >
+                {copySuccess ? "הקישור הועתק! ✅" : "העתק קישור והדבק בדפדפן"}
               </button>
               <button 
                 onClick={() => setIsFacebookBrowser(false)}
