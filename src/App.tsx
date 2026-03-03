@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'motion/react';
 
 const COSTUMES = [
   { id: 'pikachu', label: 'פיקאצ\'ו', prompt: 'Pikachu' },
+  { id: 'stitch', label: 'סטיץ\'', prompt: 'Stitch from Lilo & Stitch' },
   { id: 'capybara', label: 'קפיברה', prompt: 'Capybara' },
   { id: 'superhero', label: 'גיבור/ת על', prompt: 'Superhero' },
   { id: 'royal', label: 'נסיכ/ה', prompt: 'royal princess or prince' },
@@ -126,8 +127,15 @@ export default function App() {
   const [resultImage, setResultImage] = useState<string | null>(null);
   const [loadingMessageIdx, setLoadingMessageIdx] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [isFacebookBrowser, setIsFacebookBrowser] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const ua = navigator.userAgent || navigator.vendor || (window as any).opera;
+    const isFB = ua.indexOf("FBAN") > -1 || ua.indexOf("FBAV") > -1;
+    setIsFacebookBrowser(isFB);
+  }, []);
 
   useEffect(() => {
     const checkKey = async () => {
@@ -301,7 +309,7 @@ export default function App() {
       }
 
       let generatedImageUrl = '';
-      const parts = response.candidates[0].content.parts;
+      const parts = response.candidates?.[0]?.content?.parts || [];
       for (const part of parts) {
         if (part.inlineData) {
           generatedImageUrl = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
@@ -377,6 +385,48 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[#FDF6E3] text-black font-['Assistant'] selection:bg-[#FF7F50]/30 flex flex-col" dir="rtl">
       
+      {/* Facebook Browser Warning Overlay */}
+      <AnimatePresence>
+        {isFacebookBrowser && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-6"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              className="bg-white border-2 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] p-8 max-w-md w-full text-center"
+            >
+              <div className="bg-[#FF7F50] w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 border-2 border-black">
+                <Sparkles className="w-10 h-10 text-white" />
+              </div>
+              <h2 className="text-3xl font-black mb-4">אופס! נראה שאתם בפייסבוק</h2>
+              <p className="text-xl font-bold mb-8 leading-relaxed">
+                כדי שהקסם יעבוד בצורה מושלמת והורדת התמונות תתאפשר, כדאי לפתוח את האתר בדפדפן הרגיל שלכם (כרום או ספארי).
+              </p>
+              <button 
+                onClick={() => {
+                  const url = window.location.href;
+                  window.open(url, '_blank');
+                }}
+                className="w-full py-5 bg-blue-500 text-white border-2 border-black font-black text-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-1 hover:translate-y-1 transition-all flex items-center justify-center gap-3"
+              >
+                <RefreshCw className="w-8 h-8" />
+                פתח בדפדפן הרגיל
+              </button>
+              <button 
+                onClick={() => setIsFacebookBrowser(false)}
+                className="mt-6 text-gray-500 font-bold underline hover:text-black transition-colors"
+              >
+                המשך בכל זאת (לא מומלץ)
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Header */}
       <header className="py-16 px-4 text-center border-b-[1.5px] border-black bg-[#FF7F50] text-white relative overflow-hidden">
         <motion.div
