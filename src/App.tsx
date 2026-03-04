@@ -129,6 +129,8 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [isFacebookBrowser, setIsFacebookBrowser] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
+  const [quotaReached, setQuotaReached] = useState(false);
+  const [promptToCopy, setPromptToCopy] = useState('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -223,6 +225,31 @@ export default function App() {
     }
   };
 
+  const handleCopyPrompt = async () => {
+    try {
+      await navigator.clipboard.writeText(promptToCopy);
+      setCopySuccess(true);
+      setTimeout(() => setCopySuccess(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy prompt:', err);
+    }
+  };
+
+  useEffect(() => {
+    const selectedCostumeObj = COSTUMES.find(c => c.id === costume);
+    const costumeName = costume === 'custom' ? customCostume : selectedCostumeObj?.label;
+    const genderText = gender === 'boy' ? 'ילד' : 'ילדה';
+
+    const prompt = `דף צביעה לילדים בשחור לבן בלבד (Line Art).
+נושא: ${genderText} כבן/בת ${age} לבוש/ה בתחפושת ${costumeName}.
+הדמות צריכה להיות גדולה ומרכזית, מחזיקה דגל ישראל.
+רקע: אלמנטים של פורים כמו אוזני המן ורעשנים.
+סגנון: קווי מתאר שחורים ברורים על רקע לבן נקי, ללא הצללות וללא צבעים.
+חשוב: לשמור על תווי הפנים והתנוחה של הילד מהתמונה המקורית.`;
+
+    setPromptToCopy(prompt);
+  }, [costume, customCostume, age, gender]);
+
   const handleGenerate = async () => {
     if (!imageFile) {
       setError("אנא העלו תמונה תחילה");
@@ -238,157 +265,15 @@ export default function App() {
     }
 
     setError(null);
-    setStep('loading');
-
-    try {
-      // Prioritize API_KEY from selector (required for 3.1 preview models), then GEMINI_API_KEY from secrets
-      // @ts-ignore
-      const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY;
-      
-      if (!apiKey) {
-        // Try to trigger the key selector if we don't have a key at all
-        // @ts-ignore
-        if (window.aistudio) {
-          setHasKey(false);
-          throw new Error("יש לחבר את מפתח ה-API כדי להמשיך. לחצו על הכפתור שיופיע למטה.");
-        }
-        throw new Error("מפתח ה-API לא נמצא. אנא ודאו שהגדרתם אותו ב-Secrets או השתמשו בכפתור החיבור.");
+    setQuotaReached(true);
+    
+    // Scroll to the message
+    setTimeout(() => {
+      const element = document.getElementById('quota-message');
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth' });
       }
-
-      const ai = new GoogleGenAI({ apiKey: apiKey as string });
-
-      console.log("Starting image conversion...");
-      const base64Data = await fileToBase64(imageFile);
-      const mimeType = imageFile.type;
-      console.log("Image converted to base64. MimeType:", mimeType);
-
-      const selectedCostumeObj = COSTUMES.find(c => c.id === costume);
-      const finalCostume = costume === 'custom' ? customCostume : selectedCostumeObj?.prompt;
-      const genderText = gender === 'boy' ? 'boy' : 'girl';
-
-      // Enhanced prompt for A4, B&W, and face/pose fidelity
-      const prompt = `STRICTLY BLACK AND WHITE LINE ART. Coloring book page for children. 
-      Subject: A ${age} year old ${genderText} wearing a ${finalCostume} costume. The character should be VERY LARGE and centered in the frame, filling at least 80% of the vertical space, and be HOLDING an Israeli flag (with clear outlines of the Star of David and stripes for coloring).
-      Face and Pose: The face and the body pose MUST be an EXACT, IDENTICAL match to the person in the uploaded photo. Maintain the same facial features, eyes, nose, expression, and physical posture/pose perfectly. Only the clothing/costume should be changed to the specified costume.
-      Body: Child proportions for a ${age} year old, but following the exact pose from the photo. 
-      Background: Festive Purim elements scattered around the character, including Hamantaschen (Oznei Haman cookies) and traditional Purim Noisemakers (Raashanim). All elements must be clear, simple outlines for coloring.
-      Style: Bold black outlines on a pure white background. NO colors, NO shading, NO grey tones, NO gradients, NO 3D effects. Only empty white spaces bounded by black lines.`;
-
-      const requestContents = {
-        parts: [
-          {
-            inlineData: {
-              data: base64Data.split(',')[1],
-              mimeType: mimeType,
-            },
-          },
-          {
-            text: prompt,
-          },
-        ],
-      };
-
-      let response;
-      const TIMEOUT_MS = 90000; // 1.5 minutes
-      
-      try {
-        console.log("Attempting generation with gemini-3.1-flash-image-preview...");
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error("TIMEOUT")), TIMEOUT_MS)
-        );
-
-        response = await Promise.race([
-          ai.models.generateContent({
-            model: 'gemini-3.1-flash-image-preview',
-            contents: requestContents,
-            config: {
-              imageConfig: {
-                aspectRatio: "3:4",
-                imageSize: "1K",
-              }
-            }
-          }),
-          timeoutPromise
-        ]) as any;
-        console.log("Successfully generated with gemini-3.1-flash-image-preview", response);
-      } catch (err: any) {
-        if (err.message === "TIMEOUT") {
-          console.warn("gemini-3.1-flash-image-preview timed out after 90s. Falling back to gemini-2.5-flash-image...");
-          try {
-            response = await ai.models.generateContent({
-              model: 'gemini-2.5-flash-image',
-              contents: requestContents,
-              config: {
-                imageConfig: {
-                  aspectRatio: "3:4",
-                }
-              }
-            });
-            console.log("Successfully generated with fallback gemini-2.5-flash-image", response);
-          } catch (fallbackErr: any) {
-            console.error("Fallback generation error with gemini-2.5-flash-image:", fallbackErr);
-            throw fallbackErr;
-          }
-        } else {
-          console.error("Generation error with gemini-3.1-flash-image-preview:", err);
-          throw err;
-        }
-      }
-
-      if (!response || !response.candidates || response.candidates.length === 0) {
-        throw new Error("המודל לא החזיר תוצאה תקינה. נסו שוב.");
-      }
-
-      let generatedImageUrl = '';
-      const parts = response.candidates?.[0]?.content?.parts || [];
-      for (const part of parts) {
-        if (part.inlineData) {
-          generatedImageUrl = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
-          break;
-        }
-      }
-
-      if (!generatedImageUrl) {
-        // Check if there's text in the response (maybe a safety refusal)
-        const textPart = parts.find(p => p.text);
-        if (textPart) {
-          console.warn("Model returned text instead of image:", textPart.text);
-          throw new Error(`המודל סירב ליצור את התמונה: ${textPart.text}`);
-        }
-        throw new Error("לא נמצאה תמונה בתוצאה שהתקבלה. נסו שוב.");
-      }
-
-      console.log("Adding text overlay to generated image...");
-      const finalImage = await addTextToImage(generatedImageUrl);
-      console.log("Text overlay added successfully.");
-      setResultImage(finalImage);
-      setStep('result');
-
-    } catch (err: any) {
-      console.error("Generation error details:", err);
-      let errorMessage = "אירעה שגיאה ביצירת התמונה. נסו שוב.";
-      
-      const errorText = err.message || "";
-      const isQuotaExceeded = errorText.includes("RESOURCE_EXHAUSTED") || 
-                             errorText.includes("Quota exceeded") || 
-                             err.status === "RESOURCE_EXHAUSTED";
-
-      if (isQuotaExceeded) {
-        errorMessage = "בשל עומס רב על המערכת, המכסה היומית הסתיימה. ניתן יהיה ליצור דפי צביעה נוספים החל ממחר. תודה על הסבלנות!";
-      } else if (errorText.includes("Requested entity was not found")) {
-        errorMessage = "מפתח ה-API לא נמצא או לא תקין. אנא חברו מפתח חדש מפרויקט בתשלום.";
-        setHasKey(false);
-      } else if (errorText.includes("API key") || err.status === 401 || err.status === 403) {
-        errorMessage = "בעיה במפתח ה-API. ודאו שהגדרתם את GEMINI_API_KEY ב-Secrets או השתמשו בכפתור החיבור.";
-      } else if (errorText.includes("safety")) {
-        errorMessage = "התמונה נחסמה על ידי מסנני הבטיחות. נסו תמונה אחרת.";
-      } else if (errorText) {
-        errorMessage = errorText;
-      }
-      
-      setError(errorMessage);
-      setStep('upload');
-    }
+    }, 100);
   };
 
   const handleDownload = () => {
@@ -643,12 +528,69 @@ export default function App() {
 
                 <button
                   onClick={handleGenerate}
-                  disabled={!imageFile || (costume === 'custom' && !customCostume.trim()) || !age}
-                  className={`w-full py-8 border-[1.5px] border-black font-black text-3xl shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] transition-all flex items-center justify-center gap-4 ${(!imageFile || (costume === 'custom' && !customCostume.trim()) || !age) ? 'bg-gray-300 cursor-not-allowed opacity-50' : 'bg-blue-500 hover:bg-blue-600 hover:translate-x-1 hover:translate-y-1 hover:shadow-none text-white active:bg-blue-700'}`}
+                  className="w-full py-8 border-[1.5px] border-black font-black text-3xl shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] transition-all flex items-center justify-center gap-4 bg-blue-500 hover:bg-blue-600 hover:translate-x-1 hover:translate-y-1 hover:shadow-none text-white active:bg-blue-700"
                 >
                   <Wand2 className="w-12 h-12" />
                   צרו לי דף צביעה!
                 </button>
+
+                {/* Quota Reached Detailed Instructions */}
+                <AnimatePresence>
+                  {quotaReached && (
+                    <motion.div 
+                      id="quota-message"
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      className="mt-12 bg-[#FDF6E3] border-2 border-black p-8 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]"
+                    >
+                      <div className="flex items-center gap-4 mb-6">
+                        <div className="bg-[#FF7F50] p-3 rounded-full border-2 border-black">
+                          <Sparkles className="w-8 h-8 text-white" />
+                        </div>
+                        <h3 className="text-3xl font-black">וואו! איזו התרגשות! 🥳</h3>
+                      </div>
+                      
+                      <p className="text-xl font-bold mb-6 leading-relaxed">
+                        מעל <span className="text-[#FF7F50] font-black">1,500 דפי צביעה אישיים</span> כבר נוצרו בימים האחרונים והמכסה החינמית באפליקציה הגיעה לסיומה.
+                      </p>
+                      
+                      <div className="space-y-6 text-lg font-bold">
+                        <p>אבל אל דאגה, אתם עדיין יכולים ליצור את הקסם בעצמכם!</p>
+                        <p className="text-blue-600 font-black text-xl">יש קרדיטים חינם להתנסות באתר שלנו! 🎁</p>
+                        
+                        <div className="bg-white border-2 border-black p-6 space-y-4">
+                          <p className="font-black text-xl text-blue-600">איך עושים את זה?</p>
+                          <ol className="list-decimal list-inside space-y-3">
+                            <li>היכנסו לאתר שלנו: <a href="https://genaicreative.art" target="_blank" rel="noopener noreferrer" className="text-[#FF7F50] underline">GenAiCreative.art</a></li>
+                            <li>העלו תמונה ברורה של הילד או הילדה.</li>
+                            <li>העתיקו את ה"פרומפט" (הוראת היצירה) שמופיע כאן למטה.</li>
+                            <li>הדביקו אותו באתר שלנו וצרו את הדף!</li>
+                          </ol>
+                        </div>
+
+                        <div className="space-y-3">
+                          <p className="font-black">הפרומפט שלכם (מתעדכן לפי הבחירות שלכם):</p>
+                          <div className="space-y-4">
+                            <textarea 
+                              readOnly
+                              value={promptToCopy}
+                              className="w-full h-40 p-4 bg-gray-50 border-2 border-black font-bold text-lg resize-none"
+                            />
+                            <button 
+                              onClick={handleCopyPrompt}
+                              className="w-full bg-white border-2 border-black py-4 font-black text-xl hover:bg-[#FF7F50] hover:text-white transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:shadow-none active:translate-x-1 active:translate-y-1 flex items-center justify-center gap-3"
+                            >
+                              {copySuccess ? "הועתק בהצלחה! ✅" : "העתקת הפרומפט"}
+                            </button>
+                          </div>
+                          <p className="text-sm text-gray-600 italic">
+                            * טיפ: אתם יכולים לשנות את המילה של התחפושת בתוך הפרומפט לכל מה שתרצו!
+                          </p>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
               </div>
             </motion.div>
